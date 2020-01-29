@@ -5,6 +5,7 @@ import time
 import csv
 import json
 import math
+import logging
 
 import googleapiclient.discovery
 from googleapiclient.errors import HttpError
@@ -17,7 +18,7 @@ class YoutubeClient:
     to request data from it.
     """
 
-    def __init__(self, credentials, rate_limit_retry=15):
+    def __init__(self, credentials, rate_limit_retry=15, logger=None):
         """
         :param credentials: A dictionary of credentials - must include:
             api_key
@@ -40,10 +41,14 @@ class YoutubeClient:
             api_service_name, api_version, developerKey=developer_key)
         self.rate_limit_retry = rate_limit_retry
 
+        if logger is None:
+            logger = logging  # Default logger
+        self.logger = logger
+
     def _search(self, request, limit=math.inf, query_name=None):
         ids = []
 
-        response = _execute_and_retry(request, self.rate_limit_retry)
+        response = self._execute_and_retry(request, self.rate_limit_retry)
 
         for r in response['items']:
             try:
@@ -59,11 +64,11 @@ class YoutubeClient:
                         part='id',
                         pageToken=next_page_token
                     )
-                    response = _execute_and_retry(request, self.rate_limit_retry)
+                    response = self._execute_and_retry(request, self.rate_limit_retry)
                     found = [i['id']['videoId'] for i in response['items']]
                     ids.extend(found)
                 except KeyError:
-                    print('Found all videos for search {}'.format(query_name if query_name else request.uri))
+                    self.logger.info('Found all videos for search {}'.format(query_name if query_name else request.uri))
                     break
         return ids
 
@@ -142,7 +147,7 @@ class YoutubeClient:
             part=request_part,
             id=query
         )
-        response = _execute_and_retry(request, self.rate_limit_retry)
+        response = self._execute_and_retry(request, self.rate_limit_retry)
         return [Video(item) for item in response['items']]
 
     def format_date(self, date, from_format='%d/%m/%Y'):
@@ -165,7 +170,7 @@ class YoutubeClient:
             order="time",
             videoId=from_video_id
         )
-        response = _execute_and_retry(request, self.rate_limit_retry)
+        response = self._execute_and_retry(request, self.rate_limit_retry)
 
         comments.extend([Comment(i['snippet']['topLevelComment'])
                          for i in response['items']])
@@ -181,11 +186,11 @@ class YoutubeClient:
                         order="time",
                         videoId=from_video_id
                     )
-                    response = _execute_and_retry(request, self.rate_limit_retry)
+                    response = self._execute_and_retry(request, self.rate_limit_retry)
                     cs = [Comment(i['snippet']['topLevelComment']) for i in response['items']]
                     comments.extend(cs)
                 except KeyError:
-                    print(f'Found all comments for video {from_video_id}')
+                    self.logger.info(f'Found all comments for video {from_video_id}')
                     break
         return comments
 
@@ -196,7 +201,7 @@ class YoutubeClient:
             forUsername=username,
             maxResults=per_page
         )
-        response = _execute_and_retry(request, self.rate_limit_retry)
+        response = self._execute_and_retry(request, self.rate_limit_retry)
 
         channels = []
         channels += [Channel(item) for item in response['items']]
@@ -211,13 +216,37 @@ class YoutubeClient:
                         maxResults=per_page,
                         pageToken=next_page_token
                     )
-                    response = _execute_and_retry(request, self.rate_limit_retry)
+                    response = self._execute_and_retry(request, self.rate_limit_retry)
                     channels += [Channel(item) for item in response['items']]
                 except KeyError:
-                    print('Found all channels for user {}'.format(username))
+                    self.logger.info('Found all channels for user {}'.format(username))
                     break
 
         return channels
+
+    def _execute_and_retry(self, request, wait_min=30):
+        """
+        Execute built HTTP request, if daily rate-limit exceeded, wait and retry same request.
+
+        :param request: HTTP request to `execute`.
+        :param wait_min: number of minutes to wait for executing request
+        :return:
+        """
+        while True:
+            try:
+                return request.execute(num_retries=10)
+            except HttpError as e:
+                reason = _get_http_error_reason(e)
+
+                if reason in ['dailyLimitExceeded', 'quotaExceeded']:
+                    self.logger.warning(f'Daily limit exceeded, sleeping for {wait_min} mins...')
+                    time.sleep(wait_min * 60)
+                elif reason == 'commentsDisabled':
+                    self.logger.info('Comments disabled for video.')
+                    raise e
+                else:
+                    self.logger.error('Unknown failure!')
+                    raise e
 
 
 class Video:
@@ -364,29 +393,7 @@ def assemble_query(id_list, length=50, existing=None):
     return final_list
 
 
-def _execute_and_retry(request, wait_min=30):
-    """
-    Execute built HTTP request, if daily rate-limit exceeded, wait and retry same request.
 
-    :param request: HTTP request to `execute`.
-    :param wait_min: number of minutes to wait for executing request
-    :return:
-    """
-    while True:
-        try:
-            return request.execute()
-        except HttpError as e:
-            reason = _get_http_error_reason(e)
-
-            if reason in ['dailyLimitExceeded', 'quotaExceeded']:
-                print(f'Daily limit exceeded, sleeping for {wait_min} mins...')
-                time.sleep(wait_min * 60)
-            elif reason == 'commentsDisabled':
-                print('Comments disabled for video.')
-                raise e
-            else:
-                print('Unknown failure!')
-                raise e
 
 
 def _get_http_error_reason(e: googleapiclient.errors.HttpError):
