@@ -9,10 +9,10 @@ from . import utils
 this_dir = os.path.dirname(os.path.realpath(__file__))
 data_dir = os.path.join(this_dir, '..', 'data')
 
-video_jsonl_path = os.path.join(data_dir, 'videos_v2.jsonl')
+video_jsonl_path = os.path.join(data_dir, 'videos.jsonl')
 log_output_path = os.path.join(data_dir, 'comments_from_videos.log')
-video_error_path = os.path.join(data_dir, 'video_errors_v2.jsonl')
-comments_output_path = os.path.join(data_dir, 'comments_v2.jsonl')
+video_error_path = os.path.join(data_dir, 'video_errors.jsonl')
+comments_output_path = os.path.join(data_dir, 'comments.jsonl')
 
 seed_urls = list(pd.read_csv(os.path.join(data_dir, 'seeds.csv'))['url'].values)
 seed_users, seed_channels, seed_videos = utils.extract_ids_from_urls(seed_urls)

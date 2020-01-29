@@ -5,15 +5,14 @@ import pandas as pd
 import json
 from . import utils
 
-
 # CONFIG
 this_dir = os.path.dirname(os.path.realpath(__file__))
 data_dir = os.path.join(this_dir, '..', 'data')
 
-channel_jsonl_path = os.path.join(data_dir, 'channels_v2.jsonl')
+channel_jsonl_path = os.path.join(data_dir, 'channels.jsonl')
 log_output_path = os.path.join(data_dir, 'video_from_channel.log')
-channel_error_path = os.path.join(data_dir, 'channel_errors_v2.jsonl')
-video_output_path = os.path.join(data_dir, 'videos_v2.jsonl')
+channel_error_path = os.path.join(data_dir, 'channel_errors.jsonl')
+video_output_path = os.path.join(data_dir, 'videos.jsonl')
 
 seed_urls = list(pd.read_csv(os.path.join(data_dir, 'seeds.csv'))['url'].values)
 seed_users, seed_channels, seed_videos = utils.extract_ids_from_urls(seed_urls)
@@ -39,7 +38,7 @@ with open(video_output_path, 'a') as fp:
 # Resolve channels to video ids
 for channel_id in channel_ids:
     try:
-        print('REQUESTING VIDEO IDS...')
+        print('REQUESTING VIDEO IDS FOR CHANNEL:', channel_id)
         channel_video_ids = client.search_by_channel(channel_id, limit=100)
         video_ids.extend(channel_video_ids)
 

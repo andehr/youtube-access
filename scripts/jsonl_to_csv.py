@@ -25,7 +25,6 @@ def _iter_jsonl(jsonl_filepath):
 
 
 def convert_jsonl_to_csv(jsonl_path, csv_path):
-
     headers = _get_headers(jsonl_path)
     print('HEADERS:', headers)
 
